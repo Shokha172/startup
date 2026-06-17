@@ -553,9 +553,15 @@ export default function Dashboard() {
     const cleanText = text.replace(/[*#`_\-]/g, "");
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Choose appropriate voice
+    // Choose appropriate voice: Prioritize uz-UZ, then tr-TR, then ru-RU
     const voices = window.speechSynthesis.getVoices();
-    const uzVoice = voices.find(v => v.lang.startsWith("uz") || v.lang.startsWith("tr") || v.lang.startsWith("ru"));
+    let uzVoice = voices.find(v => v.lang.startsWith("uz") || v.lang.toLowerCase() === "uz-uz");
+    if (!uzVoice) {
+      uzVoice = voices.find(v => v.lang.startsWith("tr") || v.lang.toLowerCase() === "tr-tr");
+    }
+    if (!uzVoice) {
+      uzVoice = voices.find(v => v.lang.startsWith("ru") || v.lang.toLowerCase() === "ru-ru");
+    }
     if (uzVoice) {
       utterance.voice = uzVoice;
     }
@@ -597,8 +603,15 @@ export default function Dashboard() {
 
     recognition.onresult = (event: any) => {
       const speechToText = event.results[0][0].transcript;
-      setChatMessage(speechToText);
       triggerToast(`Ovoz aniqlandi: "${speechToText}"`, "success");
+      
+      if (activeTab === "agronomist") {
+        setChatMessage("");
+        // Pass textOverride directly to handleSendMessage to submit immediately
+        handleSendMessage(speechToText);
+      } else {
+        setChatMessage(speechToText);
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -842,20 +855,23 @@ export default function Dashboard() {
     }
   };
 
-  // Action: AI Chat API Query
-  const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return;
+  // Action: AI Chat Query
+  const handleSendMessage = async (textOverride?: string) => {
+    const messageToSend = textOverride || chatMessage;
+    if (!messageToSend.trim()) return;
 
     const userMsg = {
       role: "user",
-      text: chatMessage,
+      text: messageToSend,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     const updatedHistory = [...chatHistory, userMsg];
     setChatHistory(updatedHistory);
-    const currentMsg = chatMessage;
-    setChatMessage("");
+    const currentMsg = messageToSend;
+    if (!textOverride) {
+      setChatMessage("");
+    }
     setIsChatTyping(true);
     playClick();
 
@@ -1914,19 +1930,32 @@ export default function Dashboard() {
                         {isListening ? <MicOff size={16} /> : <Mic size={16} />}
                       </button>
 
-                      <input
-                        type="text"
-                        value={chatMessage}
-                        onChange={(e) => setChatMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSendMessage();
-                        }}
-                        placeholder="AI Agronomdan so'rang... (Gapirish uchun mikrofondan foydalaning)"
-                        className="flex-1 px-4 py-3 rounded-xl bg-white/40 dark:bg-slate-950/45 border border-white/40 dark:border-white/5 text-sm focus:outline-none focus:border-cyan-500/50"
-                      />
+                      {isListening ? (
+                        <div className="flex-1 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm flex items-center justify-between">
+                          <span className="text-red-500 font-bold animate-pulse text-xs sm:text-sm">Ovozingizni eshityapman, gapiring...</span>
+                          <div className="flex items-center gap-1">
+                            <div className="w-1 h-3 bg-red-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                            <div className="w-1 h-6 bg-red-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                            <div className="w-1 h-4 bg-red-500 rounded-full animate-bounce" />
+                            <div className="w-1 h-5 bg-red-500 rounded-full animate-bounce [animation-delay:-0.45s]" />
+                          </div>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={chatMessage}
+                          onChange={(e) => setChatMessage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSendMessage();
+                          }}
+                          placeholder="AI Agronomdan so'rang... (Gapirish uchun mikrofondan foydalaning)"
+                          className="flex-1 px-4 py-3 rounded-xl bg-white/40 dark:bg-slate-950/45 border border-white/40 dark:border-white/5 text-sm focus:outline-none focus:border-cyan-500/50"
+                        />
+                      )}
                       <button
-                        onClick={handleSendMessage}
-                        className="p-3 bg-cyan-500 hover:bg-cyan-400 transition-colors text-white rounded-xl flex items-center justify-center cursor-pointer shadow-md shadow-cyan-500/20"
+                        onClick={() => handleSendMessage()}
+                        disabled={isListening}
+                        className="p-3 bg-cyan-500 hover:bg-cyan-400 transition-colors text-white rounded-xl flex items-center justify-center cursor-pointer shadow-md shadow-cyan-500/20 disabled:opacity-55"
                       >
                         <Send size={16} />
                       </button>
