@@ -849,6 +849,42 @@ export default function Dashboard() {
     }
   };
 
+  // Helper to clean up text for jsPDF to prevent crashes on unicode characters (e.g. Uzbek quotes, Cyrillic, emojis)
+  const cleanTextForPDF = (text: string | undefined | null): string => {
+    if (!text) return "";
+    
+    // Transliterate Cyrillic to Latin if any
+    const cyrillicToLatin: Record<string, string> = {
+      'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v', 'Г': 'G', 'г': 'g',
+      'Д': 'D', 'д': 'd', 'Е': 'E', 'е': 'e', 'Ё': 'Yo', 'ё': 'yo', 'Ж': 'J', 'ж': 'j',
+      'З': 'Z', 'з': 'z', 'И': 'I', 'и': 'i', 'Й': 'Y', 'й': 'y', 'К': 'K', 'к': 'k',
+      'Л': 'L', 'л': 'l', 'М': 'M', 'м': 'm', 'Н': 'N', 'н': 'n', 'О': 'O', 'о': 'o',
+      'П': 'P', 'п': 'p', 'Р': 'R', 'р': 'r', 'С': 'S', 'с': 's', 'Т': 'T', 'т': 't',
+      'У': 'U', 'у': 'u', 'Ф': 'F', 'ф': 'f', 'Х': 'X', 'х': 'x', 'Ц': 'Ts', 'ц': 'ts',
+      'Ч': 'Ch', 'ч': 'ch', 'Ш': 'Sh', 'ш': 'sh', 'Щ': 'Shch', 'щ': 'shch', 'Ъ': '', 'ъ': '',
+      'Ы': 'I', 'ы': 'i', 'Ь': '', 'ь': '', 'Э': 'E', 'э': 'e', 'Ю': 'Yu', 'ю': 'yu', 'Я': 'Ya', 'я': 'ya',
+      'Ў': "O'", 'ў': "o'", 'Қ': 'Q', 'қ': 'q', 'Ғ': "G'", 'ғ': "g'", 'Ҳ': 'H', 'ҳ': 'h'
+    };
+    
+    let cleaned = text.split('').map(char => cyrillicToLatin[char] || char).join('');
+    
+    // Clean quotes, dashes, and other typical non-CP1252 characters
+    cleaned = cleaned
+      .replace(/[\u2018\u2019\u02bb\u02bc\u0060\u00b4]/g, "'") // single quotes, modifiers, backticks, accents
+      .replace(/[\u201c\u201d]/g, '"') // curly double quotes
+      .replace(/[\u2013\u2014]/g, "-") // dashes
+      .replace(/\u200b/g, ""); // zero-width space
+      
+    // Strip emojis and any other character outside the standard CP1252 range
+    return cleaned.replace(/[^\x00-\x7F]/g, (char) => {
+      const code = char.charCodeAt(0);
+      if (code >= 160 && code <= 255) {
+        return char;
+      }
+      return ""; // strip everything else (emojis, unsupported unicode symbols)
+    });
+  };
+
   // PDF Download Trigger
   const handleDownloadPDF = (type: "watering" | "crop") => {
     playClick();
@@ -879,24 +915,24 @@ export default function Dashboard() {
       doc.setFont("Helvetica", "bold");
       
       if (type === "watering" && wateringReport) {
-        doc.text("1. DALA VA EKISh TAFSILOTLARI", 15, 50);
+        doc.text("1. DALA VA EKISH TAFSILOTLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(`Ekin turi: ${cropType}`, 15, 58);
-        doc.text(`Maydon hajmi: ${areaSize} Hektar`, 15, 65);
-        doc.text(`Hudud: ${region} viloyati, ${district} tumani`, 15, 72);
-        doc.text(`Koordinatalar (GPS): ${latitude}, ${longitude}`, 15, 79);
+        doc.text(cleanTextForPDF(`Ekin turi: ${cropType}`), 15, 58);
+        doc.text(cleanTextForPDF(`Maydon hajmi: ${areaSize} Hektar`), 15, 65);
+        doc.text(cleanTextForPDF(`Hudud: ${region} viloyati, ${district} tumani`), 15, 72);
+        doc.text(cleanTextForPDF(`Koordinatalar (GPS): ${latitude}, ${longitude}`), 15, 79);
         
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(14);
-        doc.text("2. SUN'IY INTELLEKT SUG'ORISh REJASI", 15, 95);
+        doc.text("2. SUN'IY INTELLEKT SUG'ORISH REJASI", 15, 95);
         
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(`Navbatdagi sug'orish sanasi: ${wateringReport.nextWatering}`, 15, 103);
-        doc.text(`Tavsiya etilgan jami suv hajmi: ${wateringReport.recommendedVolumeLiters.toLocaleString()} litr`, 15, 110);
-        doc.text(`Suv tejash salohiyati (ariqqa nisbatan): ${wateringReport.waterSavingPotential}% tejaladi`, 15, 117);
-        doc.text(`Ekin xavf darajasi: ${wateringReport.riskLevel || "Kam"}`, 15, 124);
+        doc.text(cleanTextForPDF(`Navbatdagi sug'orish sanasi: ${wateringReport.nextWatering}`), 15, 103);
+        doc.text(cleanTextForPDF(`Tavsiya etilgan jami suv hajmi: ${wateringReport.recommendedVolumeLiters.toLocaleString()} litr`), 15, 110);
+        doc.text(cleanTextForPDF(`Suv tejash salohiyati (ariqqa nisbatan): ${wateringReport.waterSavingPotential}% tejaladi`), 15, 117);
+        doc.text(cleanTextForPDF(`Ekin xavf darajasi: ${wateringReport.riskLevel || "Kam"}`), 15, 124);
         
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(14);
@@ -904,35 +940,35 @@ export default function Dashboard() {
         
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(10);
-        const splitText = doc.splitTextToSize(wateringReport.aiRaisonDtre, 180);
+        const splitText = doc.splitTextToSize(cleanTextForPDF(wateringReport.aiRaisonDtre), 180);
         doc.text(splitText, 15, 148);
         
       } else if (type === "crop" && cropReport) {
-        doc.text("1. EKINDAGI KASALLIK VA STRESS TAHSISLARI", 15, 50);
+        doc.text("1. EKINDAGI KASALLIK VA STRESS TASHXISLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(`Ekin turi: ${cropTypeAnalysis}`, 15, 58);
-        doc.text(`Tashxis qilingan kasallik: ${cropReport.disease}`, 15, 65);
-        doc.text(`Xavf darajasi: ${cropReport.riskLevel}`, 15, 72);
-        doc.text(`Tashxis ishonchliligi (Gemini Vision): ${Math.round(cropReport.confidence * 100)}%`, 15, 79);
+        doc.text(cleanTextForPDF(`Ekin turi: ${cropTypeAnalysis}`), 15, 58);
+        doc.text(cleanTextForPDF(`Tashxis qilingan kasallik: ${cropReport.disease}`), 15, 65);
+        doc.text(cleanTextForPDF(`Xavf darajasi: ${cropReport.riskLevel}`), 15, 72);
+        doc.text(cleanTextForPDF(`Tashxis ishonchliligi (Gemini Vision): ${Math.round(cropReport.confidence * 100)}%`), 15, 79);
         
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(14);
-        doc.text("2. DAVOLASh VA AGRONOMIK CHORALAR", 15, 95);
+        doc.text("2. DAVOLASH VA AGRONOMIK CHORALAR", 15, 95);
         
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
         cropReport.recommendations.forEach((rec, idx) => {
-          doc.text(`${idx + 1}. ${rec}`, 15, 103 + idx * 7);
+          doc.text(cleanTextForPDF(`${idx + 1}. ${rec}`), 15, 103 + idx * 7);
         });
         
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(14);
-        doc.text("3. PATOLOGIK TUSHUNTIRISh", 15, 140);
+        doc.text("3. PATOLOGIK TUSHUNTIRISH", 15, 140);
         
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(10);
-        const splitText = doc.splitTextToSize(cropReport.description, 180);
+        const splitText = doc.splitTextToSize(cleanTextForPDF(cropReport.description), 180);
         doc.text(splitText, 15, 148);
       }
       
