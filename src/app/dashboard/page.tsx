@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Navbar } from "@/components/layout/navbar";
 import { Sidebar, DashboardTab } from "@/components/layout/sidebar";
@@ -147,6 +147,7 @@ export default function Dashboard() {
   const { playClick, playSuccess, playError, playNotification } = useAudio();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Coordinates & GPS Locating
   const [latitude, setLatitude] = useState("41.311081");
@@ -189,6 +190,14 @@ export default function Dashboard() {
     }
   ]);
   const [isChatTyping, setIsChatTyping] = useState(false);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory, isChatTyping, activeTab]);
 
   // Ob-havo (AI Weather Analysis) State
   const [weatherAdvice, setWeatherAdvice] = useState<string>("Buxoro viloyatida bugun havo ochiq va issiq. Sug'orishni kechki tungi soatlarda tomchilatib bajarish tavsiya qilinadi.");
@@ -974,6 +983,11 @@ export default function Dashboard() {
       doc.setFont("Helvetica", "bold");
       
       if (type === "watering" && wateringReport) {
+        // Draw emerald page border
+        doc.setDrawColor(6, 182, 212); // Cyan
+        doc.setLineWidth(1);
+        doc.rect(5, 5, 200, 287); // Page border
+        
         doc.text("1. DALA VA EKISH TAFSILOTLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
@@ -1002,25 +1016,44 @@ export default function Dashboard() {
         const splitText = doc.splitTextToSize(cleanTextForPDF(wateringReport.aiRaisonDtre), 180);
         doc.text(splitText, 15, 148);
         
+        // 4. Agro-Ecological Water Saving Tips
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("4. AGRO-EKOLOGIK SUV TEJASH TAVSIYALARI", 15, 215);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(cleanTextForPDF("- Tomchilatib sug'orish: Suv yo'qotishlarini 50% gacha kamaytiradi."), 15, 223);
+        doc.text(cleanTextForPDF("- Mulchalash: Bug'lanishni kamaytirib, tuproq namligini 20-30% saqlaydi."), 15, 230);
+        doc.text(cleanTextForPDF("- Tungi sug'orish: Suv bug'lanishini minimal darajaga tushiradi."), 15, 237);
+        doc.text(cleanTextForPDF("- Tuproq sho'rlanishini kamaytirish uchun gipsli melioratsiyani qo'llang."), 15, 244);
+        
       } else if (type === "esg" && wateringReport) {
+        // Draw emerald gold double page border
+        doc.setDrawColor(16, 185, 129); // Emerald
+        doc.setLineWidth(1.5);
+        doc.rect(5, 5, 200, 287); // Outer border
+        doc.setDrawColor(245, 158, 11); // Gold
+        doc.setLineWidth(0.5);
+        doc.rect(7, 7, 196, 283); // Inner gold border
+        
         // Emerald background header
         doc.setFillColor(16, 185, 129); 
-        doc.rect(0, 0, 210, 45, "F");
+        doc.rect(7, 7, 196, 40, "F");
         
         doc.setTextColor(255, 255, 255);
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(22);
-        doc.text("AQUAMIND AI - YASHIL SERTIFIKAT", 15, 25);
+        doc.text("AQUAMIND AI - YASHIL SERTIFIKAT", 15, 28);
         
         doc.setFontSize(10);
         doc.setFont("Helvetica", "normal");
         doc.setTextColor(200, 250, 230);
-        doc.text("Ekologik Sug'orish va Suv Resurslarini Optimallashtirish Sertifikati", 15, 35);
+        doc.text("Ekologik Sug'orish va Suv Resurslarini Optimallashtirish Sertifikati", 15, 38);
         
         // Gold border line
         doc.setDrawColor(245, 158, 11); 
         doc.setLineWidth(2);
-        doc.line(0, 45, 210, 45);
+        doc.line(7, 47, 203, 47);
         
         doc.setTextColor(0, 0, 0);
         doc.setFont("Helvetica", "normal");
@@ -1065,6 +1098,11 @@ export default function Dashboard() {
         doc.text("YASHIL TIZIM", 146, 221);
         
       } else if (type === "crop" && cropReport) {
+        // Draw red page border
+        doc.setDrawColor(239, 68, 68); // Red
+        doc.setLineWidth(1);
+        doc.rect(5, 5, 200, 287); // Page border
+        
         doc.text("1. EKINDAGI KASALLIK VA STRESS TASHXISLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
@@ -1091,6 +1129,17 @@ export default function Dashboard() {
         doc.setFontSize(10);
         const splitText = doc.splitTextToSize(cleanTextForPDF(cropReport.description), 180);
         doc.text(splitText, 15, 148);
+        
+        // 4. Preventative Agricultural Advice
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("4. EKIN KASALLIKLARINING OLDINI OLISH TAVSIYALARI", 15, 215);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(cleanTextForPDF("- Almashlab ekish: Tuproq patogenlari va zamburug'lar to'planishini oldini oladi."), 15, 223);
+        doc.text(cleanTextForPDF("- Sog'lom urug'lik: Kasalliksiz, sertifikatlangan urug'lardan foydalaning."), 15, 230);
+        doc.text(cleanTextForPDF("- Fitosanitariya: Daladagi kasallangan o'simlik qoldiqlarini darhol yo'qoting."), 15, 237);
+        doc.text(cleanTextForPDF("- O'g'itlash balansi: Fosfor-kaliy o'g'itlari ekinlarning immunitetini oshiradi."), 15, 244);
       }
       
       // Footer page border
@@ -1582,36 +1631,36 @@ export default function Dashboard() {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.5 }}
-                            className="flex flex-col gap-6"
                           >
                             {/* Water Suggestion Primary Card */}
-                            <GlassCard className="border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] relative overflow-hidden">
-                              <div className="absolute top-4 right-4 z-20 flex gap-2">
-                                <GlassButton
-                                  variant="glass"
-                                  onClick={() => handleDownloadPDF("watering")}
-                                  className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-cyan-500/10 hover:text-cyan-500"
-                                >
-                                  <FileDown size={14} /> PDF Hisobot
-                                </GlassButton>
-                                <GlassButton
-                                  variant="glass"
-                                  onClick={() => handleDownloadPDF("esg")}
-                                  className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-emerald-500/10 hover:text-emerald-500 text-emerald-500 animate-pulse"
-                                >
-                                  <Sparkles size={14} /> Eko-Sertifikat ESG
-                                </GlassButton>
-                              </div>
-
-                              <div className="flex items-center gap-3.5 mb-4 pr-32">
-                                <div className="bg-cyan-500/10 p-2.5 rounded-xl text-cyan-500">
-                                  <CheckCircle size={20} />
+                            <GlassCard className="border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] overflow-hidden">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-white/5 pb-4">
+                                <div className="flex items-center gap-3.5">
+                                  <div className="bg-cyan-500/10 p-2.5 rounded-xl text-cyan-500">
+                                    <CheckCircle size={20} />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sug'orish Tavsiyasi</span>
+                                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                                      {wateringReport.shouldWater ? "Sug'orish Tavsiya Etiladi!" : "Hozircha Sug'orish Shart Emas"}
+                                    </h3>
+                                  </div>
                                 </div>
-                                <div>
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sug'orish Tavsiyasi</span>
-                                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                                    {wateringReport.shouldWater ? "Sug'orish Tavsiya Etiladi!" : "Hozircha Sug'orish Shart Emas"}
-                                  </h3>
+                                <div className="flex gap-2 self-start sm:self-auto">
+                                  <GlassButton
+                                    variant="glass"
+                                    onClick={() => handleDownloadPDF("watering")}
+                                    className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-cyan-500/10 hover:text-cyan-500"
+                                  >
+                                    <FileDown size={14} /> PDF Hisobot
+                                  </GlassButton>
+                                  <GlassButton
+                                    variant="glass"
+                                    onClick={() => handleDownloadPDF("esg")}
+                                    className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-emerald-500/10 hover:text-emerald-500 text-emerald-500 animate-pulse"
+                                  >
+                                    <Sparkles size={14} /> Eko-Sertifikat ESG
+                                  </GlassButton>
                                 </div>
                               </div>
 
@@ -1762,18 +1811,8 @@ export default function Dashboard() {
                             className="flex flex-col gap-6"
                           >
                             {/* Diagnosis detail card */}
-                            <GlassCard className="border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.05)] relative overflow-hidden">
-                              <div className="absolute top-4 right-4 z-20 flex gap-2">
-                                <GlassButton
-                                  variant="glass"
-                                  onClick={() => handleDownloadPDF("crop")}
-                                  className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-red-500/10 hover:text-red-550"
-                                >
-                                  <FileDown size={14} /> PDF Yuklash
-                                </GlassButton>
-                              </div>
-
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pr-32">
+                            <GlassCard className="border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.05)] overflow-hidden">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-white/5 pb-4">
                                 <div className="flex items-center gap-3.5">
                                   <div className="bg-red-500/10 p-2.5 rounded-xl text-red-500">
                                     <AlertTriangle size={20} />
@@ -1852,7 +1891,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Chat interface */}
-                  <GlassCard className="flex flex-col h-[550px] p-0 overflow-hidden relative border-white/20">
+                  <GlassCard className="flex flex-col h-[calc(100vh-290px)] min-h-[420px] max-h-[600px] p-0 overflow-hidden relative border-white/20">
                     
                     {/* Header */}
                     <div className="px-6 py-4 bg-slate-100/50 dark:bg-slate-900/40 border-b border-slate-200/50 dark:border-white/5 flex items-center justify-between">
@@ -1913,6 +1952,7 @@ export default function Dashboard() {
                           <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-200 rounded-full animate-bounce" />
                         </div>
                       )}
+                      <div ref={messagesEndRef} />
                     </div>
 
                     {/* Message Box Input with microphone button */}
