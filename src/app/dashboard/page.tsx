@@ -38,7 +38,8 @@ import {
   FileDown,
   CloudSun,
   Wind,
-  CloudRain
+  CloudRain,
+  Trash2
 } from "lucide-react";
 
 // Dynamic import of Leaflet Map to avoid SSR failures
@@ -917,6 +918,18 @@ export default function Dashboard() {
     }
   };
 
+  const handleClearChat = () => {
+    playClick();
+    setChatHistory([
+      {
+        role: "ai",
+        text: "Assalomu alaykum! Men AquaMind AI agronom yordamchisiman. Fermerligingiz, ekinlar kasalliklari yoki sug'orish bo'yicha qanday maslahat kerak?",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+    triggerToast("Chat tarixi tozalandi", "info");
+  };
+
   // Helper to clean up text for jsPDF to prevent crashes on unicode characters (e.g. Uzbek quotes, Cyrillic, emojis)
   const cleanTextForPDF = (text: string | undefined | null): string => {
     if (!text) return "";
@@ -960,194 +973,475 @@ export default function Dashboard() {
     try {
       const doc = new jsPDF();
       
-      // Document frame & brand headers
-      doc.setFillColor(7, 10, 19); 
-      doc.rect(0, 0, 210, 35, "F");
+      // Theme colors definitions [R, G, B]
+      const colors = {
+        primary: type === "watering" ? [6, 182, 212] : type === "crop" ? [239, 68, 68] : [16, 185, 129], // cyan vs red vs emerald
+        darkSlate: [15, 23, 42],
+        lightGrey: [248, 250, 252],
+        borderGrey: [226, 232, 240],
+        textDark: [30, 41, 59],
+        textMuted: [100, 116, 139]
+      };
       
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(20);
-      doc.text("AquaMind AI - Professional Qishloq Xo'jaligi Hisoboti", 15, 22);
-      
-      doc.setTextColor(150, 150, 150);
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(`Yaratilgan sana: ${new Date().toLocaleString()}`, 15, 30);
-      
-      doc.setDrawColor(6, 182, 212); 
-      doc.setLineWidth(1.5);
-      doc.line(0, 35, 210, 35);
-      
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14);
-      doc.setFont("Helvetica", "bold");
-      
-      if (type === "watering" && wateringReport) {
-        // Draw emerald page border
-        doc.setDrawColor(6, 182, 212); // Cyan
-        doc.setLineWidth(1);
-        doc.rect(5, 5, 200, 287); // Page border
+      // Page drawing helpers
+      const drawHeader = (docTitle: string) => {
+        // Dark header block
+        doc.setFillColor(colors.darkSlate[0], colors.darkSlate[1], colors.darkSlate[2]); 
+        doc.rect(0, 0, 210, 40, "F");
         
-        doc.text("1. DALA VA EKISH TAFSILOTLARI", 15, 50);
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(cleanTextForPDF(`Ekin turi: ${wateringReport.metaCropType || cropType}`), 15, 58);
-        doc.text(cleanTextForPDF(`Maydon hajmi: ${wateringReport.metaAreaSize || areaSize} Hektar`), 15, 65);
-        doc.text(cleanTextForPDF(`Hudud: ${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 15, 72);
-        doc.text(cleanTextForPDF(`Koordinatalar (GPS): ${wateringReport.metaLatitude || latitude}, ${wateringReport.metaLongitude || longitude}`), 15, 79);
-        
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("2. SUN'IY INTELLEKT SUG'ORISH REJASI", 15, 95);
-        
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(cleanTextForPDF(`Navbatdagi sug'orish sanasi: ${wateringReport.nextWatering}`), 15, 103);
-        doc.text(cleanTextForPDF(`Tavsiya etilgan jami suv hajmi: ${wateringReport.recommendedVolumeLiters.toLocaleString()} litr`), 15, 110);
-        doc.text(cleanTextForPDF(`Suv tejash salohiyati (ariqqa nisbatan): ${wateringReport.waterSavingPotential}% tejaladi`), 15, 117);
-        doc.text(cleanTextForPDF(`Ekin xavf darajasi: ${wateringReport.riskLevel || "Kam"}`), 15, 124);
-        
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("3. ILMIY TAVSIYA VA RAISON D'ETRE", 15, 140);
-        
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(10);
-        const splitText = doc.splitTextToSize(cleanTextForPDF(wateringReport.aiRaisonDtre), 180);
-        doc.text(splitText, 15, 148);
-        
-        // 4. Agro-Ecological Water Saving Tips
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("4. AGRO-EKOLOGIK SUV TEJASH TAVSIYALARI", 15, 215);
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text(cleanTextForPDF("- Tomchilatib sug'orish: Suv yo'qotishlarini 50% gacha kamaytiradi."), 15, 223);
-        doc.text(cleanTextForPDF("- Mulchalash: Bug'lanishni kamaytirib, tuproq namligini 20-30% saqlaydi."), 15, 230);
-        doc.text(cleanTextForPDF("- Tungi sug'orish: Suv bug'lanishini minimal darajaga tushiradi."), 15, 237);
-        doc.text(cleanTextForPDF("- Tuproq sho'rlanishini kamaytirish uchun gipsli melioratsiyani qo'llang."), 15, 244);
-        
-      } else if (type === "esg" && wateringReport) {
-        // Draw emerald gold double page border
-        doc.setDrawColor(16, 185, 129); // Emerald
-        doc.setLineWidth(1.5);
-        doc.rect(5, 5, 200, 287); // Outer border
-        doc.setDrawColor(245, 158, 11); // Gold
-        doc.setLineWidth(0.5);
-        doc.rect(7, 7, 196, 283); // Inner gold border
-        
-        // Emerald background header
-        doc.setFillColor(16, 185, 129); 
-        doc.rect(7, 7, 196, 40, "F");
+        // Brand logo decoration
+        doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        doc.rect(15, 12, 4, 16, "F");
         
         doc.setTextColor(255, 255, 255);
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(22);
-        doc.text("AQUAMIND AI - YASHIL SERTIFIKAT", 15, 28);
+        doc.setFontSize(18);
+        doc.text("AquaMind AI", 24, 20);
         
-        doc.setFontSize(10);
         doc.setFont("Helvetica", "normal");
-        doc.setTextColor(200, 250, 230);
-        doc.text("Ekologik Sug'orish va Suv Resurslarini Optimallashtirish Sertifikati", 15, 38);
-        
-        // Gold border line
-        doc.setDrawColor(245, 158, 11); 
-        doc.setLineWidth(2);
-        doc.line(7, 47, 203, 47);
-        
-        doc.setTextColor(0, 0, 0);
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(12);
-        
-        doc.text(cleanTextForPDF("Ushbu sertifikat ekin maydonida AquaMind AI aqlli boshqaruv tizimi"), 20, 70);
-        doc.text(cleanTextForPDF("orqali suv tejamkorligini tasdiqlash uchun rasmiylashtirildi."), 20, 78);
-        
-        // Details box
-        doc.setFillColor(245, 247, 250);
-        doc.rect(15, 90, 180, 80, "F");
-        doc.setDrawColor(220, 225, 230);
-        doc.setLineWidth(1);
-        doc.rect(15, 90, 180, 80, "S");
-        
-        doc.setFont("Helvetica", "bold");
-        doc.text(cleanTextForPDF(`Fermerlik Hududi: ${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 25, 105);
-        doc.text(cleanTextForPDF(`Ekin turi: ${wateringReport.metaCropType || cropType}`), 25, 115);
-        doc.text(cleanTextForPDF(`Ekin maydoni: ${wateringReport.metaAreaSize || areaSize} Gektar`), 25, 125);
-        
-        doc.setTextColor(16, 185, 129); // Emerald
-        const savedLiters = wateringReport.recommendedVolumeLiters * (wateringReport.waterSavingPotential / 100);
-        doc.text(cleanTextForPDF(`Tejalgan suv hajmi: ${Math.round(savedLiters).toLocaleString()} Litr`), 25, 145);
-        doc.text(cleanTextForPDF(`Suv tejash samaradorligi: ${wateringReport.waterSavingPotential}% tejaladi`), 25, 155);
-        
-        // Eco footprint
-        doc.setTextColor(0, 0, 0);
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(cleanTextForPDF("Karbon krediti qiymati: 1.25 tCO2e tejalgan energiya"), 20, 190);
-        doc.text(cleanTextForPDF("Sertifikat raqami: AM-ESG-" + Math.floor(100000 + Math.random() * 900000)), 20, 200);
-        doc.text(cleanTextForPDF("Tasdiqlangan sana: " + new Date().toLocaleDateString()), 20, 210);
-        
-        // Stamp / Signature simulation
-        doc.setDrawColor(16, 185, 129);
-        doc.setLineWidth(1.5);
-        doc.circle(160, 215, 18, "S");
-        doc.setFont("Helvetica", "bold");
         doc.setFontSize(9);
-        doc.setTextColor(16, 185, 129);
-        doc.text("AquaMind AI", 147, 213);
-        doc.text("YASHIL TIZIM", 146, 221);
+        doc.setTextColor(150, 180, 220);
+        doc.text(cleanTextForPDF(docTitle), 24, 28);
+        
+        // Date and Time on top right
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Chop etilgan sana: ${new Date().toLocaleString()}`, 145, 25);
+        
+        // Thin accent line below header
+        doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        doc.rect(0, 40, 210, 2, "F");
+      };
+      
+      const drawFooter = () => {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(0, 280, 210, 17, "F");
+        
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text("AquaMind AI - Suv tejash va ekin muhofazasi uchun professional agrotexnika hisoboti.", 20, 290);
+        
+        // Page border
+        doc.setDrawColor(colors.borderGrey[0], colors.borderGrey[1], colors.borderGrey[2]);
+        doc.setLineWidth(0.5);
+        doc.rect(5, 5, 200, 287);
+      };
+      
+      const drawSectionTitle = (title: string, yPos: number) => {
+        // Bullet
+        doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        doc.roundedRect(15, yPos - 4, 4, 6, 1, 1, "F");
+        
+        // Text
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text(cleanTextForPDF(title), 24, yPos);
+        
+        // Underline
+        doc.setDrawColor(colors.borderGrey[0], colors.borderGrey[1], colors.borderGrey[2]);
+        doc.setLineWidth(0.5);
+        doc.line(15, yPos + 3, 195, yPos + 3);
+      };
+
+      if (type === "watering" && wateringReport) {
+        drawHeader("AQLLI SUG'ORISH VA IQLIM TAHLILI");
+        
+        let y = 55;
+        
+        // Section 1: Dala va Iqlim ma'lumotlari
+        drawSectionTitle("1. DALA VA REGIONAL IQLIM MA'LUMOTLARI", y);
+        y += 10;
+        
+        // Light Card for inputs
+        doc.setFillColor(colors.lightGrey[0], colors.lightGrey[1], colors.lightGrey[2]);
+        doc.roundedRect(15, y, 180, 52, 2, 2, "F");
+        doc.setDrawColor(colors.borderGrey[0], colors.borderGrey[1], colors.borderGrey[2]);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(15, y, 180, 52, 2, 2, "S");
+        
+        // Fetch detailed data from db
+        const selectedRegionData = REGIONS_DATA[wateringReport.metaRegion || region] || REGIONS_DATA["Buxoro"];
+        const selectedCropData = CROPS_DATA[wateringReport.metaCropType || cropType] || CROPS_DATA["Paxta"];
+        
+        doc.setFontSize(9.5);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        
+        doc.text(cleanTextForPDF(`Ekin turi: ${wateringReport.metaCropType || cropType}`), 22, y + 8);
+        doc.text(cleanTextForPDF(`Ekin maydoni: ${wateringReport.metaAreaSize || areaSize} Hektar`), 22, y + 16);
+        doc.text(cleanTextForPDF(`Hudud: ${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 22, y + 24);
+        doc.text(cleanTextForPDF(`Dala koordinatalari: Latitude ${wateringReport.metaLatitude || latitude}, Longitude ${wateringReport.metaLongitude || longitude}`), 22, y + 32);
+        
+        // Sub-column of card: region details
+        doc.text(cleanTextForPDF(`Tuproq turi: ${selectedRegionData.soilType}`), 115, y + 8);
+        doc.text(cleanTextForPDF(`Iqlim turi: ${selectedRegionData.climateType}`), 115, y + 16);
+        doc.text(cleanTextForPDF(`Yillik yog'ingarchilik: ${selectedRegionData.annualPrecipitationMm} mm`), 115, y + 24);
+        doc.text(cleanTextForPDF(`Suv tanqisligi darajasi: ${selectedRegionData.waterScarcityLevel}`), 115, y + 32);
+        
+        // Ekin suv talabi description
+        doc.setFont("Helvetica", "normal");
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        doc.setFontSize(8.5);
+        doc.text(
+          cleanTextForPDF(`* Ekinning mavsumiy suv talabi: ${selectedCropData.waterDemandLitersPerHectare.toLocaleString()} litr/gektar. Kutilayotgan hosil: ${selectedCropData.expectedYieldTonsPerHectare} t/ha.`),
+          22, y + 43
+        );
+        doc.text(
+          cleanTextForPDF(`* Tavsiya etilgan sug'orish oralig'i: ${selectedCropData.recommendedWateringIntervalDays} kun.`),
+          22, y + 48
+        );
+        
+        y += 62;
+        
+        // Section 2: AI Sug'orish rejasi
+        drawSectionTitle("2. SUN'IY INTELLEKT TAQSIMOTI VA SUG'ORISH JADVALI", y);
+        y += 10;
+        
+        // Primary stats table
+        doc.setFillColor(colors.lightGrey[0], colors.lightGrey[1], colors.lightGrey[2]);
+        doc.roundedRect(15, y, 180, 32, 2, 2, "F");
+        doc.roundedRect(15, y, 180, 32, 2, 2, "S");
+        
+        // Draw vertical division lines inside table
+        doc.line(75, y, 75, y + 32);
+        doc.line(135, y, 135, y + 32);
+        
+        // Column 1: Next date
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        doc.text("NAV BARDAGI SUG'ORISH", 20, y + 8);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]); // primary color
+        doc.text(cleanTextForPDF(wateringReport.nextWatering), 20, y + 18);
+        
+        // Column 2: Volume
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        doc.text("TAVSIYA ETILGAN SUV HAJMI", 80, y + 8);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(16, 185, 129); // emerald
+        doc.text(`${wateringReport.recommendedVolumeLiters.toLocaleString()} Litr`, 80, y + 18);
+        
+        // Column 3: Savings
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        doc.text("SUV TEJASH IMKONI YATI", 140, y + 8);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(6, 182, 212);
+        doc.text(`${wateringReport.waterSavingPotential}% tejaladi`, 140, y + 18);
+        
+        // Status detail at bottom
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        doc.text(
+          cleanTextForPDF(`Ekin xavf darajasi: ${wateringReport.riskLevel || "Kam"} | Optimal sug'orish vaqti: Kechki yoki tungi soatlar`),
+          20, y + 27
+        );
+        
+        y += 42;
+        
+        // Section 3: AI Ilmiy tavsiyasi (Raison D'etre)
+        drawSectionTitle("3. ILMIY AGRONOMIK TAVSIYA VA TAHLIL (AI)", y);
+        y += 10;
+        
+        doc.setFillColor(colors.lightGrey[0], colors.lightGrey[1], colors.lightGrey[2]);
+        doc.roundedRect(15, y, 180, 48, 2, 2, "F");
+        doc.roundedRect(15, y, 180, 48, 2, 2, "S");
+        
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        
+        const splitText = doc.splitTextToSize(cleanTextForPDF(wateringReport.aiRaisonDtre), 170);
+        doc.text(splitText, 20, y + 8);
+        
+        y += 58;
+        
+        // Section 4: Mintaqaviy dehqonchilik tavsiyalari (Mavzuga oid ma'lumotlar)
+        drawSectionTitle("4. MINTAQAVIY DEHQONCHILIK VA EKO-TAVSIYALAR", y);
+        y += 10;
+        
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        
+        // Point 1: Region specific advice
+        doc.setFont("Helvetica", "bold");
+        doc.text(cleanTextForPDF(`Mintaqa sug'orish tavsiyasi:`), 15, y);
+        doc.setFont("Helvetica", "normal");
+        const regionAdviceSplit = doc.splitTextToSize(cleanTextForPDF(selectedRegionData.wateringAdvice), 180);
+        doc.text(regionAdviceSplit, 15, y + 5);
+        y += 12 + (regionAdviceSplit.length * 3);
+        
+        // Point 2: Regional crop advice
+        doc.setFont("Helvetica", "bold");
+        doc.text(cleanTextForPDF(`Agrotexnik maslahat:`), 15, y);
+        doc.setFont("Helvetica", "normal");
+        const regionAgAdviceSplit = doc.splitTextToSize(cleanTextForPDF(selectedRegionData.agricultureAdvice), 180);
+        doc.text(regionAgAdviceSplit, 15, y + 5);
+        y += 12 + (regionAgAdviceSplit.length * 3);
+        
+        // Clean water saving bullet points at the bottom
+        doc.setFont("Helvetica", "bold");
+        doc.text("Umumiy suvni tejash texnologiyalari:", 15, y);
+        doc.setFont("Helvetica", "normal");
+        doc.text(cleanTextForPDF("- Mulchalash: Tuproq yuzasini plyonka yoki quruq o't bilan yopish bug'lanishni 30% kamaytiradi."), 15, y + 6);
+        doc.text(cleanTextForPDF("- Yomg'irlatib sug'orish: G'alla ekinlarida suv yo'qotilishini 40% gacha tejaydi."), 15, y + 12);
+        
+        drawFooter();
         
       } else if (type === "crop" && cropReport) {
-        // Draw red page border
-        doc.setDrawColor(239, 68, 68); // Red
-        doc.setLineWidth(1);
-        doc.rect(5, 5, 200, 287); // Page border
+        drawHeader("EKIN KASALLIKLARI DIAGNOSTIKA HISOBOTI");
         
-        doc.text("1. EKINDAGI KASALLIK VA STRESS TASHXISLARI", 15, 50);
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(cleanTextForPDF(`Ekin turi: ${cropReport.metaCropType || cropTypeAnalysis}`), 15, 58);
-        doc.text(cleanTextForPDF(`Tashxis qilingan kasallik: ${cropReport.disease}`), 15, 65);
-        doc.text(cleanTextForPDF(`Xavf darajasi: ${cropReport.riskLevel}`), 15, 72);
-        doc.text(cleanTextForPDF(`Tashxis ishonchliligi (Gemini Vision): ${Math.round(cropReport.confidence * 100)}%`), 15, 79);
+        let y = 55;
+        
+        // Section 1: Diagnostika natijalari
+        drawSectionTitle("1. DIAGNOSTIKA VA STRESS TAFSILOTLARI", y);
+        y += 10;
+        
+        doc.setFillColor(254, 242, 242); // very soft light red
+        doc.roundedRect(15, y, 180, 48, 2, 2, "F");
+        doc.setDrawColor(252, 165, 165); // light red border
+        doc.setLineWidth(0.4);
+        doc.roundedRect(15, y, 180, 48, 2, 2, "S");
         
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("2. DAVOLASH VA AGRONOMIK CHORALAR", 15, 95);
+        doc.setFontSize(10.5);
+        doc.setTextColor(185, 28, 28); // deep red
+        
+        doc.text(cleanTextForPDF(`Ekin turi: ${cropReport.metaCropType || cropTypeAnalysis}`), 22, y + 8);
+        doc.text(cleanTextForPDF(`Aniqlangan kasallik/stress: ${cropReport.disease}`), 22, y + 17);
+        doc.text(cleanTextForPDF(`Xavf darajasi: ${cropReport.riskLevel}`), 22, y + 26);
+        doc.text(cleanTextForPDF(`Tashxis ishonchliligi (Gemini AI Vision): ${Math.round(cropReport.confidence * 100)}%`), 22, y + 35);
+        
+        // Sub-details from crop database if matches
+        const activeCropData = CROPS_DATA[cropReport.metaCropType || cropTypeAnalysis] || CROPS_DATA["Paxta"];
+        
+        y += 58;
+        
+        // Section 2: Kasallikning ilmiy tavsifi
+        drawSectionTitle("2. PATOLOGIK TAFSILOT VA TUSHUNTIRISH", y);
+        y += 10;
+        
+        doc.setFillColor(colors.lightGrey[0], colors.lightGrey[1], colors.lightGrey[2]);
+        doc.roundedRect(15, y, 180, 45, 2, 2, "F");
+        doc.setDrawColor(colors.borderGrey[0], colors.borderGrey[1], colors.borderGrey[2]);
+        doc.roundedRect(15, y, 180, 45, 2, 2, "S");
         
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(11);
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        
+        const descSplit = doc.splitTextToSize(cleanTextForPDF(cropReport.description), 170);
+        doc.text(descSplit, 20, y + 8);
+        
+        y += 55;
+        
+        // Section 3: Davolash va agronomik choralar
+        drawSectionTitle("3. ZUDLIK BILAN AMALGA OSHIRILADIGAN CHORALAR", y);
+        y += 10;
+        
+        // Draw recommendations list with bullet numbers inside colored cards
         cropReport.recommendations.forEach((rec, idx) => {
-          doc.text(cleanTextForPDF(`${idx + 1}. ${rec}`), 15, 103 + idx * 7);
+          doc.setFillColor(248, 250, 252);
+          doc.roundedRect(15, y, 180, 12, 1.5, 1.5, "F");
+          doc.roundedRect(15, y, 180, 12, 1.5, 1.5, "S");
+          
+          doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+          doc.circle(22, y + 6, 3, "F");
+          
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(8);
+          doc.text(`${idx + 1}`, 21, y + 8.5);
+          
+          doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(9);
+          doc.text(cleanTextForPDF(rec), 28, y + 7.5);
+          
+          y += 15;
         });
         
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("3. PATOLOGIK TUSHUNTIRISH", 15, 140);
+        y += 5;
+        
+        // Section 4: Crop Disease Database details (Mavzuga oid boy ma'lumotlar)
+        drawSectionTitle("4. BARCHA KASALLIKLAR MA'LUMOTLAR BAZASI VA PREVENTIV AGRONOMIYA", y);
+        y += 10;
         
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(10);
-        const splitText = doc.splitTextToSize(cleanTextForPDF(cropReport.description), 180);
-        doc.text(splitText, 15, 148);
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
         
-        // 4. Preventative Agricultural Advice
+        doc.text(cleanTextForPDF(`Ushbu ekin (${activeCropData.name}) uchun tavsiya qilinadigan umumiy preventiv choralar:`), 15, y);
+        y += 6;
+        
+        activeCropData.commonDiseases.forEach((disease) => {
+          doc.setFont("Helvetica", "bold");
+          doc.text(cleanTextForPDF(`- ${disease.name}:`), 15, y);
+          doc.setFont("Helvetica", "normal");
+          const diseaseSymSplit = doc.splitTextToSize(cleanTextForPDF(`Simptomlari: ${disease.symptoms}. Davolash: ${disease.treatment}`), 170);
+          doc.text(diseaseSymSplit, 20, y + 5);
+          y += 8 + (diseaseSymSplit.length * 3.5);
+        });
+        
+        drawFooter();
+        
+      } else if (type === "esg" && wateringReport) {
+        // Grand Eco Certificate formatting
+        // Emerald border
+        doc.setDrawColor(16, 185, 129); // Emerald
+        doc.setLineWidth(1.5);
+        doc.rect(5, 5, 200, 287); // Outer border
+        
+        // Gold border inner
+        doc.setDrawColor(217, 119, 6); // Gold
+        doc.setLineWidth(0.6);
+        doc.rect(7, 7, 196, 283); // Inner gold border
+        
+        // Solid top header block
+        doc.setFillColor(16, 185, 129); 
+        doc.rect(7, 7, 196, 45, "F");
+        
+        // Seal and title inside block
+        doc.setTextColor(255, 255, 255);
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("4. EKIN KASALLIKLARINING OLDINI OLISH TAVSIYALARI", 15, 215);
+        doc.setFontSize(22);
+        doc.text("AQUAMIND AI - YASHIL DALA SERTIFIKATI", 15, 28);
+        
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text(cleanTextForPDF("- Almashlab ekish: Tuproq patogenlari va zamburug'lar to'planishini oldini oladi."), 15, 223);
-        doc.text(cleanTextForPDF("- Sog'lom urug'lik: Kasalliksiz, sertifikatlangan urug'lardan foydalaning."), 15, 230);
-        doc.text(cleanTextForPDF("- Fitosanitariya: Daladagi kasallangan o'simlik qoldiqlarini darhol yo'qoting."), 15, 237);
-        doc.text(cleanTextForPDF("- O'g'itlash balansi: Fosfor-kaliy o'g'itlari ekinlarning immunitetini oshiradi."), 15, 244);
+        doc.setFontSize(10.5);
+        doc.setTextColor(209, 250, 229);
+        doc.text("Ekologik Sug'orish va Suv Resurslarini Barqaror Boshqarish Kafolati", 15, 38);
+        
+        // Thick divider
+        doc.setDrawColor(217, 119, 6); // Gold
+        doc.setLineWidth(2.5);
+        doc.line(7, 52, 203, 52);
+        
+        let y = 70;
+        
+        doc.setTextColor(30, 41, 59);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(12);
+        doc.text(cleanTextForPDF("Ushbu ekologik yashil sertifikat ekin maydonida AquaMind AI tizimining"), 20, y);
+        doc.text(cleanTextForPDF("aqlli va tejamkor sug'orish ko'rsatkichlari joriy qilinganligini tasdiqlaydi."), 20, y + 8);
+        
+        y += 25;
+        
+        // Large box for certification metrics
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(15, y, 180, 85, 3, 3, "F");
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(1);
+        doc.roundedRect(15, y, 180, 85, 3, 3, "S");
+        
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        
+        doc.text(cleanTextForPDF(`Fermerlik / Ekin Maydoni Joylashuvi:`), 25, y + 10);
+        doc.setFont("Helvetica", "normal");
+        doc.text(cleanTextForPDF(`${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 25, y + 16);
+        
+        doc.setFont("Helvetica", "bold");
+        doc.text(cleanTextForPDF(`Ekin turi va maydoni:`), 25, y + 28);
+        doc.setFont("Helvetica", "normal");
+        doc.text(cleanTextForPDF(`${wateringReport.metaCropType || cropType} ekin turi, ${wateringReport.metaAreaSize || areaSize} Gektar  umumiy maydon`), 25, y + 34);
+        
+        // Draw division line in box
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, y + 42, 195, y + 42);
+        
+        // Highlight metrics: Water saved, efficiency, carbon offsets
+        const savedLiters = wateringReport.recommendedVolumeLiters * (wateringReport.waterSavingPotential / 100);
+        const carbonOffsetKg = savedLiters * 0.00015; // standard pump saving coefficient
+        
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(16, 185, 129); // emerald
+        doc.text(cleanTextForPDF(`Tejalgan suv hajmi: ${Math.round(savedLiters).toLocaleString()} Litr`), 25, y + 52);
+        doc.text(cleanTextForPDF(`Suv tejash samaradorligi: ${wateringReport.waterSavingPotential}% kam suv sarflandi`), 25, y + 62);
+        
+        doc.setTextColor(217, 119, 6); // gold
+        doc.text(cleanTextForPDF(`Energiya / Karbon Krediti: ${carbonOffsetKg.toFixed(2)} kg CO2e karbon emissiyasi kamaydi`), 25, y + 74);
+        
+        y += 100;
+        
+        // Detailed ESG Definition (Mavzuga oid boy ma'lumot)
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text("BARQAROR RIVOJLANISH (ESG) ME'YORLARI:", 15, y);
+        y += 8;
+        
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textMuted[0], colors.textMuted[1], colors.textMuted[2]);
+        
+        doc.text(
+          cleanTextForPDF("- E (ENVIRONMENTAL): Suv havzalarining qurishi (Orol dengizi havzasi) va tuproq sho'rlanishini"),
+          15, y
+        );
+        doc.text(
+          cleanTextForPDF("  kuchayishining oldini olish uchun ekinlar optimallashtirilgan hajmda sug'orildi."),
+          15, y + 5
+        );
+        y += 12;
+        
+        doc.text(
+          cleanTextForPDF("- S (SOCIAL): Mahalliy qishloq jamoalari va aholisining suv resurslariga bo'lgan ehtiyojlarini"),
+          15, y
+        );
+        doc.text(
+          cleanTextForPDF("  himoya qilish va ichimlik suvi zaxiralarini saqlab qolish ta'minlandi."),
+          15, y + 5
+        );
+        y += 12;
+        
+        doc.text(
+          cleanTextForPDF("- G (GOVERNANCE): Suv sarfi hisoboti datchiklar yordamida to'liq shaffoflashtirildi va klapanlarning"),
+          15, y
+        );
+        doc.text(
+          cleanTextForPDF("  ishlash vaqti raqamli monitoring orqali mustahkamlandi."),
+          15, y + 5
+        );
+        y += 20;
+        
+        // Signature details
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(colors.textDark[0], colors.textDark[1], colors.textDark[2]);
+        doc.text("AquaMind AI Eco Board", 20, y + 10);
+        doc.setFont("Helvetica", "normal");
+        doc.text("Bosh auditor imzosi", 20, y + 15);
+        doc.line(20, y + 8, 70, y + 8); // signature line
+        
+        // Stamp stamp visual
+        doc.setDrawColor(16, 185, 129);
+        doc.setLineWidth(1.5);
+        doc.circle(165, y + 5, 20, "S");
+        
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(16, 185, 129);
+        doc.text("AQUAMIND", 152, y + 2);
+        doc.text("ECO TRUST", 152, y + 8);
+        
+        // Stamp inner details
+        doc.setFontSize(6);
+        doc.text("UZBEKISTAN", 155, y + 15);
+        
+        drawFooter();
       }
-      
-      // Footer page border
-      doc.setFillColor(240, 240, 240);
-      doc.rect(0, 280, 210, 17, "F");
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text("AquaMind AI - Har Tomchi Muhim. Milliy AI Hackathon professional MVP hisoboti.", 38, 290);
       
       doc.save(type === "esg" ? `aquamind-esg-sertifikat.pdf` : `aquamind-${type}-hisobot.pdf`);
       triggerToast(type === "esg" ? "Yashil ESG sertifikati yuklab olindi!" : "PDF hisoboti muvaffaqiyatli yuklab olindi!", "success");
@@ -1372,7 +1666,7 @@ export default function Dashboard() {
                         {(() => {
                           const calculatedET = Math.round((weatherData.temp * 0.11 + weatherData.windSpeed * 0.12 + (100 - weatherData.rainChance) * 0.015) * 10) / 10;
                           return (
-                            <div className="grid grid-cols-4 gap-1.5 py-4 my-2 border-y border-slate-100 dark:border-white/5 text-center">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-4 my-2 border-y border-slate-100 dark:border-white/5 text-center">
                               <div className="flex flex-col">
                                 <span className="text-[9px] text-slate-400 uppercase tracking-wider">Harorat</span>
                                 <span className="text-sm font-black text-slate-800 dark:text-white mt-1">{weatherData.temp}°C</span>
@@ -1389,7 +1683,7 @@ export default function Dashboard() {
                                   <Wind size={12} /> {weatherData.windSpeed}m/s
                                 </span>
                               </div>
-                              <div className="flex flex-col border-l border-slate-150 dark:border-white/10 pl-1">
+                              <div className="flex flex-col border-l border-slate-150 dark:border-white/10 pl-1 max-sm:border-l-0">
                                 <span className="text-[9px] text-orange-400 uppercase tracking-wider">ET0 (Bug'lanish)</span>
                                 <span className="text-sm font-black text-orange-500 mt-1" title="Daily Evapotranspiration score">
                                   {calculatedET}mm
@@ -1427,7 +1721,7 @@ export default function Dashboard() {
                         AI Hosildorlik Prognozi (Hosil tahlilchisi)
                       </span>
                       <GlassCard className="flex flex-col gap-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                           <GlassSelect
                             label="Ekin turi"
                             value={yieldCropType}
@@ -1497,9 +1791,63 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Monthly SVG chart analytics */}
-                  <div className="grid grid-cols-1 gap-6">
-                    <WaterChart title="Haftalik Sug'orish va Suv Tejash Diagrammasi" data={mockAnalyticsData} />
+                  {/* Weekly SVG chart & ESG Dashboard widget */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                      <WaterChart title="Haftalik Sug'orish va Suv Tejash Diagrammasi" data={mockAnalyticsData} />
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 pl-1">
+                        Ekologik ESG & Karbon Monitoringi
+                      </span>
+                      <GlassCard className="flex flex-col justify-between h-full min-h-[260px] border-emerald-500/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 text-emerald-500 font-extrabold text-sm">
+                            <Sparkles size={16} className="animate-spin" style={{ animationDuration: '4s' }} />
+                            <span>ESG Yashil Tizim</span>
+                          </div>
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
+                            Sertifikatlangan
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-3 my-2">
+                          <div className="flex justify-between items-center bg-slate-100/40 dark:bg-slate-900/45 p-2.5 rounded-xl border border-slate-200/40 dark:border-white/5">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] text-slate-400 uppercase">Tejalgan Jami Suv</span>
+                              <span className="text-sm font-black text-slate-800 dark:text-white">
+                                {wateringReport ? `${Math.round(wateringReport.recommendedVolumeLiters * (wateringReport.waterSavingPotential / 100) * 8.5).toLocaleString()} L` : "24,500 L"}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-emerald-500">+12% tejam</span>
+                          </div>
+
+                          <div className="flex justify-between items-center bg-slate-100/40 dark:bg-slate-900/45 p-2.5 rounded-xl border border-slate-200/40 dark:border-white/5">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] text-slate-400 uppercase">Karbon Krediti (Offset)</span>
+                              <span className="text-sm font-black text-orange-500">
+                                {wateringReport ? `${(wateringReport.recommendedVolumeLiters * (wateringReport.waterSavingPotential / 100) * 8.5 * 0.00015).toFixed(2)} kg CO2` : "3.68 kg CO2"}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-orange-500">Faol</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 mt-2">
+                          <span className="text-[10px] text-slate-450 dark:text-slate-400 font-medium leading-relaxed">
+                            AquaMind AI yashil sug'orish rejasi orqali suv nasoslari uchun sarflanadigan elektr energiyasi va uglerod izini tejash koeffitsiyenti.
+                          </span>
+                          {wateringReport && (
+                            <button
+                              onClick={() => handleDownloadPDF("esg")}
+                              className="mt-2 w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 transition text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/10"
+                            >
+                              <Sparkles size={12} /> Yashil Sertifikatni Yuklash
+                            </button>
+                          )}
+                        </div>
+                      </GlassCard>
+                    </div>
                   </div>
                 </>
               )}
@@ -1891,10 +2239,10 @@ export default function Dashboard() {
                   </div>
 
                   {/* Chat interface */}
-                  <GlassCard className="flex flex-col h-[calc(100vh-290px)] min-h-[420px] max-h-[600px] p-0 overflow-hidden relative border-white/20">
+                  <GlassCard className="flex flex-col h-[500px] sm:h-[600px] lg:h-[calc(100vh-260px)] p-0 overflow-hidden relative border-white/20">
                     
                     {/* Header */}
-                    <div className="px-6 py-4 bg-slate-100/50 dark:bg-slate-900/40 border-b border-slate-200/50 dark:border-white/5 flex items-center justify-between">
+                    <div className="px-4 sm:px-6 py-4 bg-slate-100/50 dark:bg-slate-900/40 border-b border-slate-200/50 dark:border-white/5 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white dark:border-slate-950" />
@@ -1907,33 +2255,48 @@ export default function Dashboard() {
                           <span className="text-[10px] text-slate-400">Faol (Gemini Pro)</span>
                         </div>
                       </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Clear Chat Button */}
+                        <button
+                          onClick={handleClearChat}
+                          className="p-2 rounded-xl border border-white/25 dark:border-white/5 transition cursor-pointer text-xs flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:border-red-500/20 hover:bg-red-500/5"
+                          title="Chat tarixini tozalash"
+                        >
+                          <Trash2 size={16} />
+                          <span className="hidden sm:inline">Tozalash</span>
+                        </button>
 
-                      {/* Mute speaker indicator */}
-                      <button
-                        onClick={() => {
-                          playClick();
-                          setVoiceActive(!voiceActive);
-                        }}
-                        className={`p-2 rounded-xl border border-white/25 transition cursor-pointer text-xs flex items-center gap-1.5 ${
-                          voiceActive ? "bg-cyan-500/10 text-cyan-500" : "text-slate-400"
-                        }`}
-                      >
-                        {voiceActive ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                        {voiceActive ? "Ovoz Yoqilgan" : "Ovoz O'chirilgan"}
-                      </button>
+                        {/* Mute speaker indicator */}
+                        <button
+                          onClick={() => {
+                            playClick();
+                            setVoiceActive(!voiceActive);
+                          }}
+                          className={`p-2 rounded-xl border transition cursor-pointer text-xs flex items-center gap-1.5 ${
+                            voiceActive 
+                              ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-500" 
+                              : "bg-white/40 dark:bg-slate-950/45 border-white/40 dark:border-white/5 text-slate-500 hover:text-cyan-500 hover:border-cyan-500/20"
+                          }`}
+                          title={voiceActive ? "Ovozli agronom faol" : "Ovozli agronom o'chirilgan"}
+                        >
+                          {voiceActive ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                          <span className="hidden sm:inline">{voiceActive ? "Ovoz Yoqilgan" : "Ovoz O'chirilgan"}</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Messages Area */}
-                    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
                       {chatHistory.map((msg, idx) => (
                         <div
                           key={idx}
-                          className={`flex flex-col max-w-[80%] ${
+                          className={`flex flex-col max-w-[85%] sm:max-w-[80%] ${
                             msg.role === "user" ? "self-end items-end" : "self-start items-start"
                           }`}
                         >
                           <div
-                            className={`px-4 py-3 rounded-2xl text-xs sm:text-sm shadow-sm ${
+                            className={`px-4 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm shadow-sm ${
                               msg.role === "user"
                                 ? "bg-gradient-to-r from-cyan-500 to-emerald-500 text-white rounded-tr-none"
                                 : "liquid-glass border-white/20 text-slate-800 dark:text-slate-200 rounded-tl-none"
@@ -1988,7 +2351,7 @@ export default function Dashboard() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter") handleSendMessage();
                           }}
-                          placeholder="AI Agronomdan so'rang... (Gapirish uchun mikrofondan foydalaning)"
+                          placeholder="AI Agronomdan so'rang..."
                           className="flex-1 px-4 py-3 rounded-xl bg-white/40 dark:bg-slate-950/45 border border-white/40 dark:border-white/5 text-sm focus:outline-none focus:border-cyan-500/50"
                         />
                       )}

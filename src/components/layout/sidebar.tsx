@@ -37,6 +37,9 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }: SidebarP
   const handleTabChange = (tabId: string) => {
     playClick();
     setActiveTab(tabId as DashboardTab);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setIsOpen(false);
+    }
   };
 
   return (
