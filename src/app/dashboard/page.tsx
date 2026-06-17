@@ -207,6 +207,13 @@ export default function Dashboard() {
   const [yieldReport, setYieldReport] = useState<YieldReport | null>(null);
   const [isYieldAnalyzing, setIsYieldAnalyzing] = useState(false);
 
+  // IoT Valve States
+  const [valves, setValves] = useState([
+    { id: 1, name: "G'arbiy hudud (Valf 1)", open: true, flow: 22.4 },
+    { id: 2, name: "Janubiy hudud (Valf 2)", open: false, flow: 0.0 },
+    { id: 3, name: "Tomchilatib sug'orish (Valf 3)", open: true, flow: 18.2 }
+  ]);
+
   // Toast State
   const [toast, setToast] = useState<{
     message: string;
@@ -607,6 +614,22 @@ export default function Dashboard() {
     recognition.start();
   };
 
+  const handleToggleValve = (id: number) => {
+    playClick();
+    setValves(prev => prev.map(valve => {
+      if (valve.id === id) {
+        const nextOpen = !valve.open;
+        triggerToast(`${valve.name} muvaffaqiyatli ${nextOpen ? "ochildi" : "yopildi"}!`, "success");
+        return {
+          ...valve,
+          open: nextOpen,
+          flow: nextOpen ? parseFloat((15 + Math.random() * 10).toFixed(1)) : 0.0
+        };
+      }
+      return valve;
+    }));
+  };
+
   // Form states and reports relocated to the top of the component to prevent early access checks
 
   // Synchronized via handleRegionChange callback
@@ -906,7 +929,7 @@ export default function Dashboard() {
   };
 
   // PDF Download Trigger
-  const handleDownloadPDF = (type: "watering" | "crop") => {
+  const handleDownloadPDF = (type: "watering" | "crop" | "esg") => {
     playClick();
     
     try {
@@ -963,6 +986,68 @@ export default function Dashboard() {
         const splitText = doc.splitTextToSize(cleanTextForPDF(wateringReport.aiRaisonDtre), 180);
         doc.text(splitText, 15, 148);
         
+      } else if (type === "esg" && wateringReport) {
+        // Emerald background header
+        doc.setFillColor(16, 185, 129); 
+        doc.rect(0, 0, 210, 45, "F");
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(22);
+        doc.text("AQUAMIND AI - YASHIL SERTIFIKAT", 15, 25);
+        
+        doc.setFontSize(10);
+        doc.setFont("Helvetica", "normal");
+        doc.setTextColor(200, 250, 230);
+        doc.text("Ekologik Sug'orish va Suv Resurslarini Optimallashtirish Sertifikati", 15, 35);
+        
+        // Gold border line
+        doc.setDrawColor(245, 158, 11); 
+        doc.setLineWidth(2);
+        doc.line(0, 45, 210, 45);
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(12);
+        
+        doc.text(cleanTextForPDF("Ushbu sertifikat ekin maydonida AquaMind AI aqlli boshqaruv tizimi"), 20, 70);
+        doc.text(cleanTextForPDF("orqali suv tejamkorligini tasdiqlash uchun rasmiylashtirildi."), 20, 78);
+        
+        // Details box
+        doc.setFillColor(245, 247, 250);
+        doc.rect(15, 90, 180, 80, "F");
+        doc.setDrawColor(220, 225, 230);
+        doc.setLineWidth(1);
+        doc.rect(15, 90, 180, 80, "S");
+        
+        doc.setFont("Helvetica", "bold");
+        doc.text(cleanTextForPDF(`Fermerlik Hududi: ${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 25, 105);
+        doc.text(cleanTextForPDF(`Ekin turi: ${wateringReport.metaCropType || cropType}`), 25, 115);
+        doc.text(cleanTextForPDF(`Ekin maydoni: ${wateringReport.metaAreaSize || areaSize} Gektar`), 25, 125);
+        
+        doc.setTextColor(16, 185, 129); // Emerald
+        const savedLiters = wateringReport.recommendedVolumeLiters * (wateringReport.waterSavingPotential / 100);
+        doc.text(cleanTextForPDF(`Tejalgan suv hajmi: ${Math.round(savedLiters).toLocaleString()} Litr`), 25, 145);
+        doc.text(cleanTextForPDF(`Suv tejash samaradorligi: ${wateringReport.waterSavingPotential}% tejaladi`), 25, 155);
+        
+        // Eco footprint
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text(cleanTextForPDF("Karbon krediti qiymati: 1.25 tCO2e tejalgan energiya"), 20, 190);
+        doc.text(cleanTextForPDF("Sertifikat raqami: AM-ESG-" + Math.floor(100000 + Math.random() * 900000)), 20, 200);
+        doc.text(cleanTextForPDF("Tasdiqlangan sana: " + new Date().toLocaleDateString()), 20, 210);
+        
+        // Stamp / Signature simulation
+        doc.setDrawColor(16, 185, 129);
+        doc.setLineWidth(1.5);
+        doc.circle(160, 215, 18, "S");
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(16, 185, 129);
+        doc.text("AquaMind AI", 147, 213);
+        doc.text("YASHIL TIZIM", 146, 221);
+        
       } else if (type === "crop" && cropReport) {
         doc.text("1. EKINDAGI KASALLIK VA STRESS TASHXISLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
@@ -999,8 +1084,8 @@ export default function Dashboard() {
       doc.setTextColor(150, 150, 150);
       doc.text("AquaMind AI - Har Tomchi Muhim. Milliy AI Hackathon professional MVP hisoboti.", 38, 290);
       
-      doc.save(`aquamind-${type}-hisobot.pdf`);
-      triggerToast("PDF hisoboti muvaffaqiyatli yuklab olindi!", "success");
+      doc.save(type === "esg" ? `aquamind-esg-sertifikat.pdf` : `aquamind-${type}-hisobot.pdf`);
+      triggerToast(type === "esg" ? "Yashil ESG sertifikati yuklab olindi!" : "PDF hisoboti muvaffaqiyatli yuklab olindi!", "success");
     } catch (err: any) {
       console.error(err);
       triggerToast("PDF hosil qilishda xatolik yuz berdi: " + err.message, "error");
@@ -1035,7 +1120,11 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070a13] text-slate-800 dark:text-slate-100 flex flex-col pt-16 relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070a13] text-slate-800 dark:text-slate-100 flex flex-col pt-16 relative overflow-hidden">
+      
+      {/* Background ambient glowing lights */}
+      <div className="absolute top-24 left-1/4 w-96 h-96 bg-cyan-500/10 dark:bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '8s' }} />
+      <div className="absolute bottom-24 right-1/4 w-[400px] h-[400px] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[150px] pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '12s' }} />
       
       {/* Top Navbar */}
       <Navbar showSidebarToggle={true} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
@@ -1142,6 +1231,56 @@ export default function Dashboard() {
                       <GlassCard hoverEffect={false} className="p-0 border-white/40 overflow-hidden shadow-md">
                         <MapView latitude={latitude} longitude={longitude} />
                       </GlassCard>
+
+                      {/* IoT Smart Valves Card */}
+                      <GlassCard className="border-cyan-500/10">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-2">
+                            <Activity size={18} className="text-cyan-500 animate-pulse" />
+                            <h4 className="font-extrabold text-sm text-slate-800 dark:text-white">Aqlli Dala IoT Tizimi: Klapanlar Nazorati</h4>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 animate-pulse">
+                            Tizim Aloqasi: Onlayn
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {valves.map((valve) => (
+                            <div
+                              key={valve.id}
+                              className={`p-4 rounded-xl border transition-all duration-300 flex flex-col justify-between h-[110px] ${
+                                valve.open
+                                  ? "bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                                  : "bg-slate-100/40 dark:bg-slate-900/30 border-slate-200/50 dark:border-white/5"
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-350 leading-tight">
+                                  {valve.name}
+                                </span>
+                                <span className={`w-2 h-2 rounded-full ${valve.open ? "bg-emerald-500 animate-ping" : "bg-red-500"}`} />
+                              </div>
+                              <div className="flex justify-between items-center mt-4">
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase">Suv oqimi</span>
+                                  <span className="text-xs font-black text-slate-800 dark:text-white">
+                                    {valve.open ? `${valve.flow} L/min` : "0.0 L/min"}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleToggleValve(valve.id)}
+                                  className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition cursor-pointer ${
+                                    valve.open
+                                      ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-500/20"
+                                      : "bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-white/20"
+                                  }`}
+                                >
+                                  {valve.open ? "Yopish" : "Ochish"}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </GlassCard>
                     </div>
 
                     {/* Integrated AI Weather Panel */}
@@ -1165,24 +1304,35 @@ export default function Dashboard() {
                         </div>
 
                         {/* Weather metrics row */}
-                        <div className="grid grid-cols-3 gap-2 py-4 my-2 border-y border-slate-100 dark:border-white/5 text-center">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Harorat</span>
-                            <span className="text-lg font-black text-slate-800 dark:text-white mt-1">{weatherData.temp}°C</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Yomg'ir</span>
-                            <span className="text-lg font-black text-cyan-500 mt-1 flex justify-center items-center gap-0.5">
-                              <CloudRain size={14} /> {weatherData.rainChance}%
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Shamol</span>
-                            <span className="text-lg font-black text-emerald-500 mt-1 flex justify-center items-center gap-0.5">
-                              <Wind size={14} /> {weatherData.windSpeed}m/s
-                            </span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const calculatedET = Math.round((weatherData.temp * 0.11 + weatherData.windSpeed * 0.12 + (100 - weatherData.rainChance) * 0.015) * 10) / 10;
+                          return (
+                            <div className="grid grid-cols-4 gap-1.5 py-4 my-2 border-y border-slate-100 dark:border-white/5 text-center">
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase tracking-wider">Harorat</span>
+                                <span className="text-sm font-black text-slate-800 dark:text-white mt-1">{weatherData.temp}°C</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase tracking-wider">Yomg'ir</span>
+                                <span className="text-sm font-black text-cyan-500 mt-1 flex justify-center items-center gap-0.5">
+                                  <CloudRain size={12} /> {weatherData.rainChance}%
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase tracking-wider">Shamol</span>
+                                <span className="text-sm font-black text-emerald-500 mt-1 flex justify-center items-center gap-0.5">
+                                  <Wind size={12} /> {weatherData.windSpeed}m/s
+                                </span>
+                              </div>
+                              <div className="flex flex-col border-l border-slate-150 dark:border-white/10 pl-1">
+                                <span className="text-[9px] text-orange-400 uppercase tracking-wider">ET0 (Bug'lanish)</span>
+                                <span className="text-sm font-black text-orange-500 mt-1" title="Daily Evapotranspiration score">
+                                  {calculatedET}mm
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* AI Weather Advice box */}
                         <div className="flex flex-col gap-2">
@@ -1426,7 +1576,14 @@ export default function Dashboard() {
                                   onClick={() => handleDownloadPDF("watering")}
                                   className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-cyan-500/10 hover:text-cyan-500"
                                 >
-                                  <FileDown size={14} /> PDF Yuklash
+                                  <FileDown size={14} /> PDF Hisobot
+                                </GlassButton>
+                                <GlassButton
+                                  variant="glass"
+                                  onClick={() => handleDownloadPDF("esg")}
+                                  className="px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 border-white/20 hover:bg-emerald-500/10 hover:text-emerald-500 text-emerald-500 animate-pulse"
+                                >
+                                  <Sparkles size={14} /> Eko-Sertifikat ESG
                                 </GlassButton>
                               </div>
 
