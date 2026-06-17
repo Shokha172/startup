@@ -58,6 +58,12 @@ interface WateringReport {
   waterSavingPotential: number;
   riskLevel: string;
   aiRaisonDtre: string;
+  metaCropType?: string;
+  metaAreaSize?: string;
+  metaRegion?: string;
+  metaDistrict?: string;
+  metaLatitude?: string;
+  metaLongitude?: string;
 }
 
 interface CropReport {
@@ -66,6 +72,7 @@ interface CropReport {
   confidence: number;
   recommendations: string[];
   description: string;
+  metaCropType?: string;
 }
 
 interface WeatherReport {
@@ -631,7 +638,16 @@ export default function Dashboard() {
               if (apiError) {
                 triggerToast(apiError, "error");
               } else if (apiData) {
-                setWateringReport(apiData);
+                const reportWithMeta = {
+                  ...apiData,
+                  metaCropType: cropType,
+                  metaAreaSize: areaSize,
+                  metaRegion: region,
+                  metaDistrict: district,
+                  metaLatitude: latitude,
+                  metaLongitude: longitude
+                };
+                setWateringReport(reportWithMeta);
                 setShowWaterReport(true);
                 triggerToast("Sug'orish rejasi muvaffaqiyatli hisoblandi!", "success");
                 speakText(`Tashkil qilingan sug'orish rejasi muvaffaqiyatli tuzildi. Navbatdagi sug'orish sanasi ${apiData.nextWatering}.`);
@@ -701,7 +717,11 @@ export default function Dashboard() {
               if (apiError) {
                 triggerToast(apiError, "error");
               } else if (apiData) {
-                setCropReport(apiData);
+                const reportWithMeta = {
+                  ...apiData,
+                  metaCropType: cropTypeAnalysis
+                };
+                setCropReport(reportWithMeta);
                 setShowCropReport(true);
                 triggerToast("Ekin diagnostikasi yakunlandi!", "success");
                 speakText(`Ekin bargi diagnostikasi yakunlandi. Aniqlangan kasallik: ${apiData.disease}.`);
@@ -918,10 +938,10 @@ export default function Dashboard() {
         doc.text("1. DALA VA EKISH TAFSILOTLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(cleanTextForPDF(`Ekin turi: ${cropType}`), 15, 58);
-        doc.text(cleanTextForPDF(`Maydon hajmi: ${areaSize} Hektar`), 15, 65);
-        doc.text(cleanTextForPDF(`Hudud: ${region} viloyati, ${district} tumani`), 15, 72);
-        doc.text(cleanTextForPDF(`Koordinatalar (GPS): ${latitude}, ${longitude}`), 15, 79);
+        doc.text(cleanTextForPDF(`Ekin turi: ${wateringReport.metaCropType || cropType}`), 15, 58);
+        doc.text(cleanTextForPDF(`Maydon hajmi: ${wateringReport.metaAreaSize || areaSize} Hektar`), 15, 65);
+        doc.text(cleanTextForPDF(`Hudud: ${wateringReport.metaRegion || region} viloyati, ${wateringReport.metaDistrict || district} tumani`), 15, 72);
+        doc.text(cleanTextForPDF(`Koordinatalar (GPS): ${wateringReport.metaLatitude || latitude}, ${wateringReport.metaLongitude || longitude}`), 15, 79);
         
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(14);
@@ -947,7 +967,7 @@ export default function Dashboard() {
         doc.text("1. EKINDAGI KASALLIK VA STRESS TASHXISLARI", 15, 50);
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(cleanTextForPDF(`Ekin turi: ${cropTypeAnalysis}`), 15, 58);
+        doc.text(cleanTextForPDF(`Ekin turi: ${cropReport.metaCropType || cropTypeAnalysis}`), 15, 58);
         doc.text(cleanTextForPDF(`Tashxis qilingan kasallik: ${cropReport.disease}`), 15, 65);
         doc.text(cleanTextForPDF(`Xavf darajasi: ${cropReport.riskLevel}`), 15, 72);
         doc.text(cleanTextForPDF(`Tashxis ishonchliligi (Gemini Vision): ${Math.round(cropReport.confidence * 100)}%`), 15, 79);
